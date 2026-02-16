@@ -2,7 +2,13 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
-First, run the development server:
+First, ensure you have a `.env` file based on `.env.example` in the root directory:
+```bash
+cp .env.example .env
+```
+Update the `.env` file with your Strava API details and a random secret for NextAuth.
+
+Then, run the development server:
 
 ```bash
 npm run dev
@@ -29,8 +35,37 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## Deploy on Vercel
+## Deploy to AWS
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+This project uses [SST](https://sst.dev) to deploy the Next.js application to AWS.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Prerequisites
+
+1.  **AWS Account**: You need an active AWS account.
+2.  **AWS Credentials**: Configure your AWS credentials locally. You can do this via the AWS CLI:
+    ```bash
+    aws configure
+    ```
+    Or by setting the environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
+3.  **Environment Variables**: Ensure your `.env` file is populated. For production, you may need to update `NEXTAUTH_URL` to match your deployed domain.
+
+### Deployment
+
+To deploy the application to your personal development stage:
+
+```bash
+npx sst deploy
+```
+
+To deploy to production:
+
+```bash
+npx sst deploy --stage production
+```
+
+This will automatically build your Next.js application and provision the necessary AWS resources (CloudFront, S3, Lambda, etc.) to host it.
+
+**Important**: After deployment, SST will output the URL of your application.
+1.  Update the `NEXTAUTH_URL` in your `.env` file with this URL.
+2.  Update the **Authorization Callback Domain** in your Strava API Application settings to match this domain.
+3.  Redeploy if necessary (`npx sst deploy`).
