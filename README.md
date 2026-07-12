@@ -1,71 +1,86 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Strava Run Visualizer
 
-## Getting Started
+A Next.js app that connects to Strava and displays the latest 200 activities, filtered to runs,
+trail runs, and hikes, on an interactive Leaflet map.
 
-First, ensure you have a `.env` file based on `.env.example` in the root directory:
-```bash
-cp .env.example .env
-```
-Update the `.env` file with your Strava API details and a random secret for NextAuth.
-
-Then, run the development server:
+## Local development
 
 ```bash
+cp .env.example .env.local
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Create a NextAuth secret with `openssl rand -base64 32`. In the Strava API dashboard, set the
+Authorization Callback Domain to `localhost` for local development. Strava redirects back to:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```text
+http://localhost:3000/api/auth/callback/strava
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Authentication
 
-## Learn More
+The app uses a 30-day encrypted NextAuth JWT session. Strava access tokens are refreshed
+automatically before expiry using the refresh token, so routine use should not require another
+login. Reauthorization is needed only if Strava revokes the grant, the refresh token becomes
+invalid, the browser session cookie is cleared, or the NextAuth secret changes.
 
-To learn more about Next.js, take a look at the following resources:
+Never place Strava tokens in browser local storage. They would be accessible to client-side
+JavaScript and are less secure than the HTTP-only encrypted session cookie used here.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## AWS deployment
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy to AWS
-
-This project uses [SST](https://sst.dev) to deploy the Next.js application to AWS.
-
-### Prerequisites
-
-1.  **AWS Account**: You need an active AWS account.
-2.  **AWS Credentials**: Configure your AWS credentials locally. You can do this via the AWS CLI:
-    ```bash
-    aws configure
-    ```
-    Or by setting the environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
-3.  **Environment Variables**: Ensure your `.env` file is populated. For production, you may need to update `NEXTAUTH_URL` to match your deployed domain.
-
-### Deployment
-
-To deploy the application to your personal development stage:
+The Next.js application is deployed through SST/OpenNext:
 
 ```bash
-npx sst deploy
+npm run deploy
 ```
 
-To deploy to production:
+If AWS was authenticated with `aws login` instead of a shared profile, pass its short-lived
+credentials to SST for that process:
 
 ```bash
-npx sst deploy --stage production
+eval "$(aws configure export-credentials --format env)"
+npm run deploy
 ```
 
-This will automatically build your Next.js application and provision the necessary AWS resources (CloudFront, S3, Lambda, etc.) to host it.
+For the current deployment, use:
 
-**Important**: After deployment, SST will output the URL of your application.
-1.  Update the `NEXTAUTH_URL` in your `.env` file with this URL.
-2.  Update the **Authorization Callback Domain** in your Strava API Application settings to match this domain.
-3.  Redeploy if necessary (`npx sst deploy`).
+```text
+NEXTAUTH_URL=https://dly2k41m9jl34.cloudfront.net
+Authorization Callback Domain: dly2k41m9jl34.cloudfront.net
+Callback URL: https://dly2k41m9jl34.cloudfront.net/api/auth/callback/strava
+```
+
+The Strava dashboard field takes only the hostname—no `https://` and no callback path. Deploy
+with stable values for `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `NEXTAUTH_SECRET`, and
+`NEXTAUTH_URL`.
+
+## Cloudflare Pages alias
+
+Like `gym_web`, the `pages-redirect/` directory is a small redirect site. The Next.js app remains
+on AWS; Cloudflare Pages gives it a memorable public entry URL.
+
+- Active public alias: `https://strava-maksym.pages.dev/`
+- Redirect target: `https://dly2k41m9jl34.cloudfront.net/`
+- Cloudflare Pages project: `strava-maksym`
+
+To recreate the project:
+
+1. In Cloudflare, create a Pages project named `strava-maksym`.
+2. Use Direct Upload and upload the contents of `pages-redirect/`, or connect the repository and
+   set the output directory to `pages-redirect`.
+3. Visit `https://strava-maksym.pages.dev/` and confirm it redirects to CloudFront.
+
+Because this is a redirect—not a reverse proxy—the OAuth callback continues to use the CloudFront
+hostname. Keep `NEXTAUTH_URL` and Strava's callback domain set to CloudFront.
+
+### AWS Function URL compatibility
+
+SST 3.17.23 may create only the older `lambda:InvokeFunctionUrl` public permission. On current AWS,
+the server Lambda also needs `lambda:InvokeFunction` constrained by
+`lambda:InvokedViaFunctionUrl=true`. The current deployment has this permission. If the site ever
+returns a JSON `403 AccessDeniedException` immediately after recreating its infrastructure, add
+that second permission or upgrade SST after reviewing the SST 4 migration.
+
+See `PROJECT_PLAN.md` for architecture, diagnosis, priorities, and the resume checklist.

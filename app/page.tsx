@@ -1,80 +1,110 @@
 import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import Link from "next/link"
-import { getStravaActivities } from "@/lib/strava"
-import MapWrapper from '@/components/MapWrapper'
+import ActivityExplorer from "@/components/ActivityExplorer"
+import ConnectButton from "@/components/ConnectButton"
+import { authOptions } from "@/lib/auth"
+import { getStravaActivities, type StravaActivitiesResult } from "@/lib/strava"
 
-export default async function Home() {
-  const session = await getServerSession(authOptions)
-  let activities: any[] = []
+const AUTH_ERRORS: Record<string, string> = {
+    AccessDenied: "Strava did not grant access. Please try again and approve activity access.",
+    Configuration: "The Strava login configuration is incomplete. Check the callback domain and app credentials.",
+    OAuthCallback: "Strava could not complete the login. Check the app's Authorization Callback Domain.",
+    OAuthSignin: "The connection to Strava could not be started. Please try again.",
+}
 
-  if (session?.accessToken) {
-    const allActivities = await getStravaActivities(session.accessToken as string)
-    // Filter for Runs and Hikes only
-    activities = allActivities.filter(activity =>
-      activity.type === 'Run' || activity.type === 'Hike' || activity.type === 'TrailRun'
-    )
-  }
+export default async function Home({
+    searchParams,
+}: {
+    searchParams: Promise<{ error?: string }>
+}) {
+    const session = await getServerSession(authOptions)
+    const { error: oauthError } = await searchParams
+    let result: StravaActivitiesResult = { activities: [] }
 
-  return (
-    <div className="flex h-screen flex-col bg-black text-white">
-      {/* Header */}
-      <div className="z-20 w-full flex items-center justify-between p-4 bg-gray-900 border-b border-gray-800 shadow-md">
-        <h1 className="text-xl font-bold text-[#FC4C02]">Strava Run Visualizer</h1>
+    if (session?.accessToken && !session.authError) {
+        result = await getStravaActivities(session.accessToken)
+    }
 
-        {session ? (
-          <div className="flex items-center gap-4">
-            <span className="hidden sm:inline text-sm text-gray-300">
-              {session.user?.name}
-            </span>
-            <Link
-              href="/api/auth/signout"
-              className="text-xs px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded border border-gray-700 transition-colors"
-            >
-              Sign Out
-            </Link>
-          </div>
-        ) : null}
-      </div>
+    const activities = result.activities
+        .filter((activity) => ["Run", "Hike", "TrailRun"].includes(activity.type))
+        .sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime())
 
-      {/* Main Content */}
-      <div className="flex-1 relative">
-        {session ? (
-          <div className="absolute inset-0 z-0">
-            <MapWrapper activities={activities} />
+    const needsReconnect = session?.authError === "RefreshAccessTokenError"
+        || result.error === "unauthorized"
 
-            {/* Overlay Stats */}
-            <div className="absolute bottom-8 left-4 right-4 z-[1000] pointer-events-none">
-              <div className="bg-gray-900/90 backdrop-blur-sm text-white border border-gray-800 p-4 rounded-xl shadow-lg max-w-md mx-auto pointer-events-auto">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <p className="text-xs text-gray-400 uppercase font-bold">Recent Activities</p>
-                    <p className="text-2xl font-bold">{activities.length}</p>
-                  </div>
+    return (
+        <main className="flex h-dvh flex-col overflow-hidden bg-slate-950 text-white">
+            <header className="z-20 flex min-h-16 w-full items-center justify-between border-b border-white/10 bg-slate-950 px-4 shadow-md sm:px-6">
+                <div>
+                    <h1 className="text-lg font-bold tracking-tight text-[#fc4c02] sm:text-xl">
+                        Strava Run Visualizer
+                    </h1>
+                    <p className="hidden text-xs text-slate-400 sm:block">
+                        Your latest mapped runs and hikes
+                    </p>
                 </div>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="flex h-full flex-col items-center justify-center p-8 text-center">
-            <div className="max-w-md space-y-8">
-              <div>
-                <h2 className="text-3xl font-bold mb-4">Visualize Your Journey</h2>
-                <p className="text-gray-400 mb-8">
-                  Connect with Strava to see all your runs on an interactive map and plan your next adventure.
-                </p>
-              </div>
 
-              <Link
-                href="/api/auth/signin"
-                className="inline-flex items-center justify-center px-8 py-4 bg-[#FC4C02] hover:bg-[#E34402] text-white font-bold rounded-full transition-colors text-lg shadow-lg shadow-orange-900/20"
-              >
-                Connect with Strava
-              </Link>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
+                {session && (
+                    <div className="flex items-center gap-3">
+                        <span className="hidden max-w-48 truncate text-sm text-slate-300 sm:inline">
+                            {session.user?.name}
+                        </span>
+                        <Link
+                            href="/api/auth/signout"
+                            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs transition hover:bg-white/10"
+                        >
+                            Sign out
+                        </Link>
+                    </div>
+                )}
+            </header>
+
+            <section className="relative flex-1">
+                {session && !needsReconnect ? (
+                    <>
+                        <ActivityExplorer activities={activities} />
+                        {result.error && (
+                            <div role="alert" className="absolute left-1/2 top-4 z-[1050] w-[min(90vw,32rem)] -translate-x-1/2 rounded-xl border border-amber-300/30 bg-slate-950/95 p-4 text-sm shadow-xl">
+                                {result.error === "rate_limited"
+                                    ? "Strava's request limit was reached. Please try again in a little while."
+                                    : "Strava is temporarily unavailable. Your routes could not be loaded."}
+                            </div>
+                        )}
+                    </>
+                ) : (
+                    <div className="flex h-full items-center justify-center p-6 text-center">
+                        <div className="max-w-lg">
+                            <div className="mx-auto mb-6 grid size-16 place-items-center rounded-2xl bg-[#fc4c02] text-3xl shadow-xl shadow-orange-950/40">
+                                ↗
+                            </div>
+                            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+                                See where your miles take you
+                            </h2>
+                            <p className="mx-auto mt-4 max-w-md text-slate-400">
+                                Connect Strava once to explore your latest runs, trail runs, and hikes on an interactive map.
+                            </p>
+
+                            {(oauthError || needsReconnect) && (
+                                <div role="alert" className="mt-6 rounded-xl border border-red-400/30 bg-red-500/10 p-4 text-left text-sm text-red-100">
+                                    <p className="font-semibold">Strava connection needs attention</p>
+                                    <p className="mt-1 text-red-200/80">
+                                        {needsReconnect
+                                            ? "Your saved Strava connection could not be refreshed. Reconnect once to replace it."
+                                            : AUTH_ERRORS[oauthError ?? ""] ?? "Login did not complete. Please try again."}
+                                    </p>
+                                </div>
+                            )}
+
+                            <div className="mt-8">
+                                <ConnectButton label={needsReconnect ? "Reconnect Strava" : "Connect with Strava"} />
+                            </div>
+                            <p className="mt-4 text-xs text-slate-500">
+                                The app keeps an encrypted session and refreshes Strava access automatically.
+                            </p>
+                        </div>
+                    </div>
+                )}
+            </section>
+        </main>
+    )
 }

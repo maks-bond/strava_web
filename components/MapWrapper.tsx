@@ -1,17 +1,23 @@
-'use client';
+"use client"
 
-import dynamic from 'next/dynamic';
-import { StravaActivity } from '@/lib/strava';
+import dynamic from "next/dynamic"
+import type { StravaActivity } from "@/lib/strava"
 
-const Map = dynamic(() => import('./Map'), {
+const Map = dynamic(() => import("./Map"), {
     ssr: false,
-    loading: () => <div className="h-full w-full flex items-center justify-center bg-gray-100 text-gray-500">Loading Map...</div>
-});
+    loading: () => (
+        <div className="flex h-full w-full items-center justify-center bg-slate-100 text-sm text-slate-500">
+            Loading map…
+        </div>
+    ),
+})
 
 interface MapWrapperProps {
-    activities: StravaActivity[];
+    activities: StravaActivity[]
+    selectedActivityId?: number
+    onSelectActivity: (id: number) => void
 }
 
-export default function MapWrapper({ activities }: MapWrapperProps) {
-    return <Map activities={activities} />;
+export default function MapWrapper(props: MapWrapperProps) {
+    return <Map {...props} />
 }

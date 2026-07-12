@@ -1,94 +1,134 @@
-'use client';
+"use client"
 
-import { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Polyline, Marker, Popup, useMapEvents, useMap } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
-import polyline from '@mapbox/polyline';
-import { StravaActivity } from '@/lib/strava';
-
-// Fix Leaflet marker icon issue in Next.js
-const iconUrl = 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png';
-const iconRetinaUrl = 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png';
-const shadowUrl = 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png';
+import { useEffect, useMemo, useState } from "react"
+import { MapContainer, Marker, Popup, Polyline, TileLayer, useMap } from "react-leaflet"
+import "leaflet/dist/leaflet.css"
+import L from "leaflet"
+import polyline from "@mapbox/polyline"
+import type { StravaActivity } from "@/lib/strava"
 
 const defaultIcon = L.icon({
-    iconUrl,
-    iconRetinaUrl,
-    shadowUrl,
+    iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+    iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+    shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
     iconSize: [25, 41],
     iconAnchor: [12, 41],
     popupAnchor: [1, -34],
     shadowSize: [41, 41],
-});
+})
 
-L.Marker.prototype.options.icon = defaultIcon;
+L.Marker.prototype.options.icon = defaultIcon
 
 interface MapProps {
-    activities: StravaActivity[];
+    activities: StravaActivity[]
+    selectedActivityId?: number
+    onSelectActivity: (id: number) => void
+}
+
+type Route = {
+    activity: StravaActivity
+    positions: [number, number][]
+}
+
+function MapViewport({ routes, selectedActivityId }: {
+    routes: Route[]
+    selectedActivityId?: number
+}) {
+    const map = useMap()
+
+    useEffect(() => {
+        const selected = routes.find((route) => route.activity.id === selectedActivityId)
+        const positions = selected?.positions ?? routes.flatMap((route) => route.positions)
+        if (positions.length > 0) {
+            map.fitBounds(L.latLngBounds(positions), {
+                padding: [36, 36],
+                maxZoom: selected ? 15 : 13,
+                animate: true,
+            })
+        }
+    }, [map, routes, selectedActivityId])
+
+    return null
 }
 
 function LocationMarker() {
-    const [position, setPosition] = useState<L.LatLng | null>(null);
-    const map = useMap();
+    const [position, setPosition] = useState<L.LatLng | null>(null)
+    const map = useMap()
 
     useEffect(() => {
-        map.locate().on("locationfound", function (e) {
-            setPosition(e.latlng);
-            map.flyTo(e.latlng, map.getZoom());
-        });
-    }, [map]);
+        const onFound = (event: L.LocationEvent) => {
+            setPosition(event.latlng)
+            map.flyTo(event.latlng, Math.max(map.getZoom(), 14), {
+                animate: true,
+                duration: 1,
+            })
+        }
+        map.on("locationfound", onFound)
+        map.locate({ setView: false })
+        return () => {
+            map.off("locationfound", onFound)
+            map.stopLocate()
+        }
+    }, [map])
 
-    return position === null ? null : (
+    return position ? (
         <Marker position={position}>
             <Popup>You are here</Popup>
         </Marker>
-    );
+    ) : null
 }
 
-export default function Map({ activities }: MapProps) {
-    // Default center (can be anything, will be overridden by user location)
-    const center: [number, number] = [37.7749, -122.4194];
+export default function Map({ activities, selectedActivityId, onSelectActivity }: MapProps) {
+    const routes = useMemo<Route[]>(() => activities.flatMap((activity) => {
+        if (!activity.map.summary_polyline) return []
+        try {
+            return [{
+                activity,
+                positions: polyline.decode(activity.map.summary_polyline) as [number, number][],
+            }]
+        } catch (error) {
+            console.error("Failed to decode polyline for activity", activity.id, error)
+            return []
+        }
+    }), [activities])
 
     return (
         <MapContainer
-            center={center}
-            zoom={13}
-            style={{ height: '100%', width: '100%', zIndex: 0 }}
+            center={[37.7749, -122.4194]}
+            zoom={11}
+            style={{ height: "100%", width: "100%", zIndex: 0 }}
             className="h-full w-full"
         >
             <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
                 url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
             />
-
+            <MapViewport routes={routes} selectedActivityId={selectedActivityId} />
             <LocationMarker />
 
-            {activities.map((activity) => {
-                if (!activity.map.summary_polyline) return null;
-
-                try {
-                    const positions = polyline.decode(activity.map.summary_polyline);
-                    return (
-                        <Polyline
-                            key={activity.id}
-                            positions={positions}
-                            pathOptions={{ color: '#FC4C02', weight: 3, opacity: 0.7 }}
-                        >
-                            <Popup>
-                                <div className="font-sans">
-                                    <h3 className="font-bold">{activity.name}</h3>
-                                    <p>{(activity.distance / 1000).toFixed(2)} km</p>
-                                    <p>{new Date(activity.start_date).toLocaleDateString()}</p>
-                                </div>
-                            </Popup>
-                        </Polyline>
-                    );
-                } catch (e) {
-                    console.error("Failed to decode polyline for activity", activity.id, e);
-                    return null;
-                }
+            {routes.map(({ activity, positions }) => {
+                const selected = activity.id === selectedActivityId
+                return (
+                    <Polyline
+                        key={activity.id}
+                        positions={positions}
+                        pathOptions={{
+                            color: selected ? "#111827" : "#fc4c02",
+                            weight: selected ? 6 : 3,
+                            opacity: selected ? 1 : 0.68,
+                        }}
+                        eventHandlers={{ click: () => onSelectActivity(activity.id) }}
+                    >
+                        <Popup>
+                            <div className="font-sans">
+                                <strong>{activity.name}</strong>
+                                <p>{(activity.distance / 1000).toFixed(2)} km</p>
+                                <p>{new Date(activity.start_date).toLocaleDateString()}</p>
+                            </div>
+                        </Popup>
+                    </Polyline>
+                )
             })}
-        </MapContainer >
-    );
+        </MapContainer>
+    )
 }
