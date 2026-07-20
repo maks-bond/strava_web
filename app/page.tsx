@@ -3,7 +3,6 @@ import Link from "next/link"
 import ActivityExplorer from "@/components/ActivityExplorer"
 import ConnectButton from "@/components/ConnectButton"
 import { authOptions } from "@/lib/auth"
-import { getStravaActivities, type StravaActivitiesResult } from "@/lib/strava"
 
 const AUTH_ERRORS: Record<string, string> = {
     AccessDenied: "Strava did not grant access. Please try again and approve activity access.",
@@ -19,18 +18,7 @@ export default async function Home({
 }) {
     const session = await getServerSession(authOptions)
     const { error: oauthError } = await searchParams
-    let result: StravaActivitiesResult = { activities: [] }
-
-    if (session?.accessToken && !session.authError) {
-        result = await getStravaActivities(session.accessToken)
-    }
-
-    const activities = result.activities
-        .filter((activity) => ["Run", "Hike", "TrailRun"].includes(activity.type))
-        .sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime())
-
     const needsReconnect = session?.authError === "RefreshAccessTokenError"
-        || result.error === "unauthorized"
 
     return (
         <main className="flex h-dvh flex-col overflow-hidden bg-slate-950 text-white">
@@ -61,16 +49,7 @@ export default async function Home({
 
             <section className="relative flex-1">
                 {session && !needsReconnect ? (
-                    <>
-                        <ActivityExplorer activities={activities} />
-                        {result.error && (
-                            <div role="alert" className="absolute left-1/2 top-4 z-[1050] w-[min(90vw,32rem)] -translate-x-1/2 rounded-xl border border-amber-300/30 bg-slate-950/95 p-4 text-sm shadow-xl">
-                                {result.error === "rate_limited"
-                                    ? "Strava's request limit was reached. Please try again in a little while."
-                                    : "Strava is temporarily unavailable. Your routes could not be loaded."}
-                            </div>
-                        )}
-                    </>
+                    <ActivityExplorer />
                 ) : (
                     <div className="flex h-full items-center justify-center p-6 text-center">
                         <div className="max-w-lg">

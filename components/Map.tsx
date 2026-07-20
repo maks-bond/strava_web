@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { MapContainer, Marker, Popup, Polyline, TileLayer, useMap } from "react-leaflet"
 import "leaflet/dist/leaflet.css"
 import L from "leaflet"
@@ -35,16 +35,22 @@ function MapViewport({ routes, selectedActivityId }: {
     selectedActivityId?: number
 }) {
     const map = useMap()
+    const lastSelectedActivityId = useRef<number | undefined>(undefined)
 
     useEffect(() => {
+        const selectionChanged = selectedActivityId !== undefined
+            && selectedActivityId !== lastSelectedActivityId.current
+        if (!selectionChanged) return
+
         const selected = routes.find((route) => route.activity.id === selectedActivityId)
-        const positions = selected?.positions ?? routes.flatMap((route) => route.positions)
+        const positions = selected?.positions ?? []
         if (positions.length > 0) {
             map.fitBounds(L.latLngBounds(positions), {
                 padding: [36, 36],
-                maxZoom: selected ? 15 : 13,
+                maxZoom: 15,
                 animate: true,
             })
+            lastSelectedActivityId.current = selectedActivityId
         }
     }, [map, routes, selectedActivityId])
 

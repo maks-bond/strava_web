@@ -18,12 +18,18 @@ export interface StravaActivity {
 export type StravaActivitiesResult = {
     activities: StravaActivity[]
     error?: "unauthorized" | "rate_limited" | "unavailable"
+    hasMore?: boolean
 }
 
-export async function getStravaActivities(accessToken: string): Promise<StravaActivitiesResult> {
+export async function getStravaActivities(
+    accessToken: string,
+    { before, perPage = 200 }: { before?: number; perPage?: number } = {},
+): Promise<StravaActivitiesResult> {
     try {
+        const params = new URLSearchParams({ per_page: String(perPage) })
+        if (before) params.set("before", String(before))
         const response = await fetch(
-            "https://www.strava.com/api/v3/athlete/activities?per_page=200",
+            `https://www.strava.com/api/v3/athlete/activities?${params}`,
             {
                 headers: { Authorization: `Bearer ${accessToken}` },
                 cache: "no-store",
@@ -37,7 +43,8 @@ export async function getStravaActivities(accessToken: string): Promise<StravaAc
             return { activities: [], error: "unavailable" }
         }
 
-        return { activities: (await response.json()) as StravaActivity[] }
+        const activities = (await response.json()) as StravaActivity[]
+        return { activities, hasMore: activities.length === perPage }
     } catch (error) {
         console.error("Error fetching Strava activities", error)
         return { activities: [], error: "unavailable" }

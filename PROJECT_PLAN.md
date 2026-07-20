@@ -1,6 +1,19 @@
 # Strava Run Visualizer: Improvement and Deployment Plan
 
-Last updated: 2026-07-11
+Last updated: 2026-07-19
+
+## Performance work
+
+- Render the authenticated shell and map without waiting for Strava activity data.
+- Request the newest 10 activities first, then the next 10, so the map becomes useful in two
+  lightweight steps. Continue older history newest-first in timestamp-cursor batches of 200
+  (Strava's per-page maximum).
+- Continue loading older pages sequentially in the background until Strava returns a short page.
+  Do not treat 200 as the history limit or discard routes if a later page fails.
+- Show a compact status with the loaded route count, whether history is still loading or fully
+  loaded, and a retry action for background failures.
+- Never fit the viewport to newly loaded routes. Geolocation controls the initial view; only an
+  explicit activity selection changes the viewport to fit that route.
 
 ## Current architecture
 
@@ -10,8 +23,8 @@ Last updated: 2026-07-11
 - Active Cloudflare Pages alias: `https://strava-maksym.pages.dev/`; it redirects all paths to
   the current CloudFront origin and was verified with an HTTP 302 followed by a successful 200.
 - NextAuth v4 uses Strava OAuth with the `activity:read_all` scope.
-- The home page fetches up to 200 recent Strava activities, keeps runs, trail runs,
-  and hikes, then draws their summary polylines on a Leaflet map.
+- The original home page fetched up to 200 activities before rendering. The performance update
+  replaces that blocking request with progressive client-side full-history pagination.
 - `gym-maksym.pages.dev` is a Cloudflare Pages redirect project, not a Cloudflare-hosted
   Next.js deployment. Its `_redirects` file sends all paths to its AWS CloudFront origin.
 
