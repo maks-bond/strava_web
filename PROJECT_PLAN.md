@@ -2,7 +2,7 @@
 
 Last updated: 2026-07-19
 
-## Performance work
+## Current completed behavior
 
 - Render the authenticated shell and map without waiting for Strava activity data.
 - Request the newest 10 activities first, then the next 10, so the map becomes useful in two
@@ -14,6 +14,12 @@ Last updated: 2026-07-19
   loaded, and a retry action for background failures.
 - Never fit the viewport to newly loaded routes. Geolocation controls the initial view; only an
   explicit activity selection changes the viewport to fit that route.
+- Strava access tokens refresh automatically in the NextAuth JWT callback. The encrypted session
+  lasts 30 days, so ordinary use should not require daily login.
+- The activity drawer is chronological (newest first), unobtrusive, and supports selecting an
+  individual route. The Activities button is in the upper-right, away from Leaflet zoom controls.
+- Loading, empty, rate-limit, API failure, expired-auth, and retry states are visible without
+  removing routes that already loaded.
 
 ## Current architecture
 
@@ -23,12 +29,18 @@ Last updated: 2026-07-19
 - Active Cloudflare Pages alias: `https://strava-maksym.pages.dev/`; it redirects all paths to
   the current CloudFront origin and was verified with an HTTP 302 followed by a successful 200.
 - NextAuth v4 uses Strava OAuth with the `activity:read_all` scope.
-- The original home page fetched up to 200 activities before rendering. The performance update
-  replaces that blocking request with progressive client-side full-history pagination.
+- `app/api/activities/route.ts` is an authenticated same-origin proxy. It never exposes the Strava
+  access token to the browser. It returns mapped runs, trail runs, and hikes plus `nextBefore` and
+  `hasMore` pagination metadata.
+- `ActivityExplorer` requests 10, then 10, then 200 at a time using the oldest raw activity's Unix
+  timestamp as Strava's `before` cursor. The cursor must be computed before route/type filtering,
+  or pages containing unmapped activities could create gaps.
+- Strava returns athlete activities newest-first. The client still sorts merged mapped activities
+  newest-first and deduplicates them by activity ID.
 - `gym-maksym.pages.dev` is a Cloudflare Pages redirect project, not a Cloudflare-hosted
   Next.js deployment. Its `_redirects` file sends all paths to its AWS CloudFront origin.
 
-## Requested priorities
+## Completed priorities
 
 1. Fix the broken/annoying Strava login.
 2. Refresh Strava access tokens automatically so normal use does not require repeated login.
@@ -37,37 +49,19 @@ Last updated: 2026-07-19
 5. Validate lint and production build.
 6. Last: create/document a `strava-maksym.pages.dev` redirect project matching `gym_web`.
 
-## Authentication diagnosis
+## Authentication and external requirements
 
 - Strava's July 2026 developer onboarding requires a Strava subscription for API application
   access. If the API dashboard shows the subscriber-only access gate, it may hide the editable
   application fields and prevent OAuth until the account subscribes.
 - The live NextAuth sign-in endpoint responds normally and uses
   `https://dly2k41m9jl34.cloudfront.net` as its callback base.
-- The existing JWT stores the Strava refresh token and expiry but never refreshes an expired
-  access token. Strava access tokens expire, so the current app eventually fetches no data and
-  forces manual reauthorization.
+- The JWT stores the Strava access token, refresh token, and expiry. `lib/auth.ts` refreshes it five
+  minutes before expiry. A refresh failure sets `RefreshAccessTokenError` and prompts reconnection.
 - The Strava API application must have the exact active hostname in its Authorization Callback
   Domain. For the current AWS-hosted auth flow that is `dly2k41m9jl34.cloudfront.net` (hostname
   only, no scheme/path). A Pages redirect does not change the final browser hostname because it
   redirects to CloudFront.
-- OAuth failures should be surfaced in the app with a useful retry/configuration message rather
-  than appearing as an unexplained empty activity set.
-
-## Implementation direction
-
-- Refresh expired Strava tokens in the NextAuth JWT callback using Strava's token endpoint.
-- Keep a long-lived encrypted NextAuth session cookie and pass only token status—not raw tokens—to
-  UI components beyond what the server needs.
-- Redirect directly to Strava from the custom sign-in page and provide friendly auth error UI.
-- Return structured Strava fetch results so API/auth failures are distinguishable from no data.
-- Add a compact activity drawer/list, newest first, with route selection and Strava links.
-- Fit the map to activity bounds initially; geolocation should be optional and should not pull the
-  user away from their routes.
-- Add a `pages-redirect/` folder targeting the CloudFront origin and document Cloudflare setup.
-
-## External configuration still required
-
 - Strava dashboard: set **Authorization Callback Domain** to the hostname that actually handles
   `/api/auth/callback/strava` (currently `dly2k41m9jl34.cloudfront.net`).
 - If Strava displays “We're updating API access to be subscriber-only,” start/maintain a Strava
@@ -84,10 +78,26 @@ Last updated: 2026-07-19
   changes can be published with
   `npx wrangler pages deploy pages-redirect --project-name strava-maksym --branch main`.
 
+## Latest verification and deployment
+
+- Performance implementation commit: `ddbeeab` (`Speed up progressive activity loading`).
+- Latest code is deployed to the existing `maksym` SST stage and verified through
+  `https://strava-maksym.pages.dev/` with HTTP 200 on 2026-07-19.
+- Lint and the Node 20 production build passed. The machine's default Node 19 is too old for
+  Next.js 16; use `/home/maksym/.nvm/versions/node/v20.20.2/bin` in `PATH`.
+- AWS login can expire. Run `aws login`, then bridge its credentials for SST with
+  `eval "$(aws configure export-credentials --format env)"` before `npm run deploy`.
+- The host disables Ubuntu 24.04's extra AppArmor unprivileged-user-namespace restriction through
+  `/etc/sysctl.d/60-apparmor-namespace.conf`, allowing Codex's Bubblewrap sandbox to work. Do not
+  diagnose a manually launched nested `bwrap` inside Codex as a host failure: nested Bubblewrap is
+  expected to lack network capabilities; test Bubblewrap directly from the normal shell instead.
+
 ## Resume checklist
 
 1. Read this file and `README.md`.
 2. Run `git status --short` and preserve unrelated user changes.
 3. Install dependencies with `npm install` if `node_modules` is absent.
-4. Run `npm run lint` and `npm run build` before deployment.
+4. Run `npm run lint` and the production build with Node 20 before deployment.
 5. Deploy AWS first, test login and refresh, then configure the Pages redirect last.
+6. After changing progressive loading, verify that background pages never move map zoom/pan;
+   geolocation controls the initial view and activity selection is the only route-fit action.
