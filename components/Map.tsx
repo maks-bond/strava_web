@@ -103,7 +103,7 @@ export default function Map({ activities, selectedActivityId, onSelectActivity }
             center={[37.7749, -122.4194]}
             zoom={11}
             style={{ height: "100%", width: "100%", zIndex: 0 }}
-            className="h-full w-full"
+            className="route-map h-full w-full"
         >
             <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'

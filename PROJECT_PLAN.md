@@ -24,6 +24,9 @@ Last updated: 2026-10-11
   requiring an API key in August 2026, so do not restore an unauthenticated `cartocdn.com` URL;
   it renders an "API key required" watermark. If CARTO styling is desired later, request a CARTO
   Basemaps key and add `?key=...` to its tile URL.
+- OpenStreetMap raster tiles are intentionally filtered to a light, low-saturation appearance in
+  `app/globals.css`. Keep the filter scoped to `.route-map .leaflet-tile-pane` so activity routes,
+  markers, popups, and controls retain their normal contrast and colors.
 
 ## Current architecture
 

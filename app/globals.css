@@ -24,3 +24,12 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Keep geographic context visible while letting activity routes carry the color. */
+.route-map {
+  background: #eef1f3;
+}
+
+.route-map .leaflet-tile-pane {
+  filter: grayscale(72%) saturate(42%) brightness(108%) contrast(84%);
+}
