@@ -20,13 +20,13 @@ Last updated: 2026-10-11
   individual route. The Activities button is in the upper-right, away from Leaflet zoom controls.
 - Loading, empty, rate-limit, API failure, expired-auth, and retry states are visible without
   removing routes that already loaded.
-- The basemap uses OpenStreetMap standard raster tiles with visible OSM attribution. CARTO began
-  requiring an API key in August 2026, so do not restore an unauthenticated `cartocdn.com` URL;
-  it renders an "API key required" watermark. If CARTO styling is desired later, request a CARTO
-  Basemaps key and add `?key=...` to its tile URL.
-- OpenStreetMap raster tiles are intentionally filtered to a light, low-saturation appearance in
-  `app/globals.css`. Keep the filter scoped to `.route-map .leaflet-tile-pane` so activity routes,
-  markers, popups, and controls retain their normal contrast and colors.
+- The map uses CARTO Positron (`light_all`) raster tiles with the public browser key from
+  `NEXT_PUBLIC_CARTO_BASEMAP_KEY`. CARTO and OpenStreetMap attribution must remain visible. CARTO
+  began requiring keys in August 2026; an unauthenticated `cartocdn.com` URL renders an
+  "API key required" watermark.
+- The CARTO key is intentionally visible in browser requests and must be restricted in CARTO's
+  dashboard to `dly2k41m9jl34.cloudfront.net` and `strava-maksym.pages.dev`. The real value belongs
+  only in gitignored `.env`; `.env.example` contains an empty placeholder.
 
 ## Current architecture
 

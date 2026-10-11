@@ -106,8 +106,8 @@ export default function Map({ activities, selectedActivityId, onSelectActivity }
             className="route-map h-full w-full"
         >
             <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'
-                url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+                url={`https://basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}{r}.png?key=${process.env.NEXT_PUBLIC_CARTO_BASEMAP_KEY}`}
             />
             <MapViewport routes={routes} selectedActivityId={selectedActivityId} />
             <LocationMarker />

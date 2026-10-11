@@ -15,6 +15,7 @@ export default $config({
       "STRAVA_CLIENT_SECRET",
       "NEXTAUTH_SECRET",
       "NEXTAUTH_URL",
+      "NEXT_PUBLIC_CARTO_BASEMAP_KEY",
     ] as const;
     const missingEnvironment = requiredEnvironment.filter((name) => !process.env[name]);
 
@@ -30,6 +31,7 @@ export default $config({
         STRAVA_CLIENT_SECRET: process.env.STRAVA_CLIENT_SECRET!,
         NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET!,
         NEXTAUTH_URL: process.env.NEXTAUTH_URL!,
+        NEXT_PUBLIC_CARTO_BASEMAP_KEY: process.env.NEXT_PUBLIC_CARTO_BASEMAP_KEY!,
       },
     });
 
