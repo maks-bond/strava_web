@@ -1,6 +1,6 @@
 # Strava Run Visualizer: Improvement and Deployment Plan
 
-Last updated: 2026-07-19
+Last updated: 2026-10-11
 
 ## Current completed behavior
 
@@ -20,6 +20,10 @@ Last updated: 2026-07-19
   individual route. The Activities button is in the upper-right, away from Leaflet zoom controls.
 - Loading, empty, rate-limit, API failure, expired-auth, and retry states are visible without
   removing routes that already loaded.
+- The basemap uses OpenStreetMap standard raster tiles with visible OSM attribution. CARTO began
+  requiring an API key in August 2026, so do not restore an unauthenticated `cartocdn.com` URL;
+  it renders an "API key required" watermark. If CARTO styling is desired later, request a CARTO
+  Basemaps key and add `?key=...` to its tile URL.
 
 ## Current architecture
 
